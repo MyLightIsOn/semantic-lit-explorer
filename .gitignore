@@ -1,5 +1,6 @@
 /.idea/
 /dev docs/
 /.env.local
+/.env
 /node_modules/
 /papers/
