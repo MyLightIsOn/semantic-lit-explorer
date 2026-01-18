@@ -16,6 +16,6 @@
     "@langchain/core": "^1.1.15",
     "@langchain/textsplitters": "^1.0.1",
     "langchain": "^1.2.10",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^1.1.4"
   }
 }
