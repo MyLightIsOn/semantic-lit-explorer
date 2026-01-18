@@ -1,0 +1,21 @@
+{
+  "name": "semantic-lit-explorer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MyLightIsOn/semantic-lit-explorer.git"
+  },
+  "private": true,
+  "dependencies": {
+    "@langchain/community": "^1.1.4",
+    "@langchain/core": "^1.1.15",
+    "@langchain/textsplitters": "^1.0.1",
+    "langchain": "^1.2.10",
+    "pdf-parse": "^2.4.5"
+  }
+}
