@@ -96,8 +96,7 @@ export async function summarizePdf(formData: FormData): Promise<SummarizePdfResu
       temperature: 0.3,
     })
 
-    // Generate summary (track LLM timing)
-    const llmStartTime = performance.now()
+    // Generate summary
     const response = await llm.invoke([
       {
         role: 'system',
@@ -114,14 +113,13 @@ Keep the summary to 3-5 sentences.`,
         content: textToSummarize,
       },
     ])
-    const llmEndTime = performance.now()
 
     const summary = response.content.toString()
 
-    // Extract token usage from response
-    const usage = response.usage_metadata || response.response_metadata?.tokenUsage
-    const promptTokens = usage?.input_tokens || 0
-    const completionTokens = usage?.output_tokens || 0
+    // Extract token usage from response (handle different response formats)
+    const usage = (response as any).usage_metadata || (response as any).response_metadata?.tokenUsage
+    const promptTokens = usage?.input_tokens || usage?.promptTokens || 0
+    const completionTokens = usage?.output_tokens || usage?.completionTokens || 0
     const totalTokens = promptTokens + completionTokens
 
     // Calculate cost (GPT-4o-mini pricing: $0.15/1M input, $0.60/1M output)

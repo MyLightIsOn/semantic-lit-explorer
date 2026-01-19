@@ -21,7 +21,9 @@ export async function loadPdfFromPath(filePath: string): Promise<Document[]> {
  */
 export async function loadPdfFromBuffer(buffer: Buffer, fileName: string): Promise<Document[]> {
   // Create a blob from the buffer for PDFLoader
-  const blob = new Blob([buffer], { type: 'application/pdf' })
+  // Convert Buffer to Uint8Array for proper Blob compatibility
+  const uint8Array = new Uint8Array(buffer)
+  const blob = new Blob([uint8Array], { type: 'application/pdf' })
   const loader = new PDFLoader(blob)
 
   const docs = await loader.load()
