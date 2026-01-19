@@ -5,11 +5,24 @@ import { splitDocuments } from '@/lib/pdf/splitter'
 import { storeDocuments } from '@/lib/vectordb/store'
 
 /**
+ * Metadata for document loading operation
+ */
+export type LoadingMetadata = {
+  latencyMs: number
+  pages: number
+  chunks: number
+  embeddingsGenerated: number
+  estimatedTokens: number
+  estimatedCost: number
+}
+
+/**
  * Result type for document loading operation
  */
 export type LoadDocumentsResult = {
   success: boolean
   chunksLoaded?: number
+  metadata?: LoadingMetadata
   error?: string
 }
 
@@ -30,6 +43,8 @@ export async function loadDocumentsFromPath(
   filePath: string,
   tableName: string = 'documents'
 ): Promise<LoadDocumentsResult> {
+  const startTime = performance.now()
+
   try {
     // Step 1: Load PDF
     const docs = await loadPdfFromPath(filePath)
@@ -40,9 +55,24 @@ export async function loadDocumentsFromPath(
     // Step 3 & 4: Generate embeddings and store
     const chunksLoaded = await storeDocuments(chunks, tableName)
 
+    // Calculate metadata
+    const totalChars = chunks.reduce((sum, chunk) => sum + chunk.pageContent.length, 0)
+    const estimatedTokens = Math.ceil(totalChars / 4) // Rough estimate: 1 token ~= 4 chars
+    const estimatedCost = (estimatedTokens / 1_000_000) * 0.02 // text-embedding-3-small pricing
+
+    const endTime = performance.now()
+
     return {
       success: true,
       chunksLoaded,
+      metadata: {
+        latencyMs: Math.round(endTime - startTime),
+        pages: docs.length,
+        chunks: chunks.length,
+        embeddingsGenerated: chunks.length,
+        estimatedTokens,
+        estimatedCost,
+      },
     }
   } catch (error) {
     console.error('Error loading documents:', error)
@@ -68,6 +98,8 @@ export async function loadDocumentsFromBuffer(
   fileName: string,
   tableName: string = 'documents'
 ): Promise<LoadDocumentsResult> {
+  const startTime = performance.now()
+
   try {
     // Step 1: Load PDF from buffer
     const docs = await loadPdfFromBuffer(buffer, fileName)
@@ -78,9 +110,24 @@ export async function loadDocumentsFromBuffer(
     // Step 3 & 4: Generate embeddings and store
     const chunksLoaded = await storeDocuments(chunks, tableName)
 
+    // Calculate metadata
+    const totalChars = chunks.reduce((sum, chunk) => sum + chunk.pageContent.length, 0)
+    const estimatedTokens = Math.ceil(totalChars / 4) // Rough estimate: 1 token ~= 4 chars
+    const estimatedCost = (estimatedTokens / 1_000_000) * 0.02 // text-embedding-3-small pricing
+
+    const endTime = performance.now()
+
     return {
       success: true,
       chunksLoaded,
+      metadata: {
+        latencyMs: Math.round(endTime - startTime),
+        pages: docs.length,
+        chunks: chunks.length,
+        embeddingsGenerated: chunks.length,
+        estimatedTokens,
+        estimatedCost,
+      },
     }
   } catch (error) {
     console.error('Error loading documents:', error)
