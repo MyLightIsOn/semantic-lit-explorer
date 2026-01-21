@@ -1,9 +1,10 @@
 import type { SummarizationMetadata } from '../actions/summarizePdf'
 import type { LoadingMetadata } from '../actions/loadDocuments'
+import type { QueryMetadata } from '../actions/queryDocuments'
 
 type MetadataDisplayProps = {
-  type: 'summarization' | 'loading'
-  metadata: SummarizationMetadata | LoadingMetadata
+  type: 'summarization' | 'loading' | 'query'
+  metadata: SummarizationMetadata | LoadingMetadata | QueryMetadata
 }
 
 export default function MetadataDisplay({ type, metadata }: MetadataDisplayProps) {
@@ -31,11 +32,15 @@ export default function MetadataDisplay({ type, metadata }: MetadataDisplayProps
       }}
     >
       <h4 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '0.875rem', fontWeight: '600' }}>
-        {type === 'summarization' ? '📊 Summarization Metrics' : '📊 Loading Metrics'}
+        {type === 'summarization'
+          ? '📊 Summarization Metrics'
+          : type === 'loading'
+            ? '📊 Loading Metrics'
+            : '📊 Query Metrics'}
       </h4>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-        {type === 'summarization' && 'tokensUsed' in metadata && (
+        {type === 'summarization' && 'modelUsed' in metadata && (
           <>
             <MetricItem label="Latency" value={formatLatency(metadata.latencyMs)} />
             <MetricItem label="Model" value={metadata.modelUsed} />
@@ -64,6 +69,26 @@ export default function MetadataDisplay({ type, metadata }: MetadataDisplayProps
             <MetricItem
               label="Estimated Tokens"
               value={formatNumber(metadata.estimatedTokens)}
+            />
+            <MetricItem label="Estimated Cost" value={formatCost(metadata.estimatedCost)} />
+          </>
+        )}
+
+        {type === 'query' && 'totalLatencyMs' in metadata && (
+          <>
+            <MetricItem
+              label="Total Latency"
+              value={formatLatency(metadata.totalLatencyMs)}
+              subtitle={`Reformulation: ${formatLatency(metadata.reformulationLatency)} | Retrieval: ${formatLatency(metadata.retrievalLatency)} | Answer: ${formatLatency(metadata.answerLatency)}`}
+            />
+            <MetricItem
+              label="Documents Retrieved"
+              value={formatNumber(metadata.documentsRetrieved)}
+            />
+            <MetricItem
+              label="Total Tokens"
+              value={formatNumber(metadata.tokensUsed.total)}
+              subtitle={`Reformulation: ${formatNumber(metadata.tokensUsed.reformulation.total)} | Answer: ${formatNumber(metadata.tokensUsed.answer.total)}`}
             />
             <MetricItem label="Estimated Cost" value={formatCost(metadata.estimatedCost)} />
           </>

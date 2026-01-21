@@ -25,7 +25,19 @@ export default function Home() {
             </Link>{' '}
             - Add research papers to the vector database
           </li>
-          <li style={{ color: '#999' }}>Query Documents - Coming soon</li>
+          <li>
+            <Link
+              href="/query"
+              style={{
+                color: '#0070f3',
+                textDecoration: 'none',
+                fontWeight: '500',
+              }}
+            >
+              Query Documents
+            </Link>{' '}
+            - Ask questions about your research papers
+          </li>
           <li style={{ color: '#999' }}>Semantic Search - Coming soon</li>
         </ul>
       </div>
