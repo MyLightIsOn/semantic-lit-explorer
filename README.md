@@ -52,38 +52,31 @@ This mirrors production LLM architectures discussed in the literature.
 ### Phase 1: Corpus Definition
 **Goal:** Define a controlled, research-relevant dataset of 20-100 papers  
 **Focus:** LLM architectures, RAG, multi-agent systems, orchestration, governance & evaluation  
-**Status:** 🟡 In Progress
 
 ### Phase 2: Text Extraction
 **Goal:** Produce clean, readable text from PDFs  
 **Tasks:** Extract text per page, remove headers/footers, preserve section structure  
-**Status:** ⚪ Not Started
 
 ### Phase 3: Section-Aware Chunking
 **Goal:** Preserve academic semantics  
 **Strategy:** 200-300 word chunks with ~20% overlap, aligned to sections  
 **Metadata:** Title, authors, year, venue, section name, paper type  
-**Status:** ⚪ Not Started
 
 ### Phase 4: Embedding
 **Goal:** Encode meaning, not structure  
 **Method:** Sentence-transformer embedding model  
-**Status:** ⚪ Not Started
 
 ### Phase 5: Vector Database
 **Goal:** Provide semantic memory  
 **Storage:** Embedding vector + raw text + metadata payload  
-**Status:** ⚪ Not Started
 
 ### Phase 6: Semantic Retrieval
 **Goal:** Retrieve arguments, not documents  
 **Query Types:** Definitions, comparisons, trend analysis, limitations/critique  
-**Status:** ⚪ Not Started
 
 ### Phase 7: LLM Synthesis
 **Goal:** Generate grounded research assistance  
 **Constraints:** Answer using only retrieved context, no external knowledge  
-**Status:** ⚪ Not Started
 
 ---
 
@@ -120,28 +113,6 @@ semantic-lit-explorer/
 
 ---
 
-## Getting Started
-
-### Prerequisites
-- Python 3.9+
-- Notion account (for project management)
-- TBD: Vector database (evaluating options)
-- TBD: Embedding model (evaluating options)
-
-### Current Status
-The project is in **Phase 1: Corpus Definition**. We are currently:
-- ✅ Defining paper selection criteria
-- 🟡 Identifying candidate papers
-- ⚪ Setting up repository structure
-
-### Next Steps
-1. Complete paper selection criteria (see `paper_selection_criteria.md`)
-2. Set up project repository structure
-3. Begin identifying and collecting papers
-4. Document initial architectural decisions
-
----
-
 ## Methodology
 
 ### Evaluation Strategy
@@ -158,11 +129,6 @@ The project is in **Phase 1: Corpus Definition**. We are currently:
 - Ask ambiguous questions
 
 **Failures are treated as research insights, not bugs.**
-
-### Guiding Principle
-
-> If you can query it by meaning, you can reason about it.  
-> If you can reason about it, you can design better systems.
 
 ---
 
@@ -197,42 +163,6 @@ This project uses Notion for task management and documentation:
 
 ---
 
-## Current Tasks
-
-### In Progress
-- **Task 1:** Define Selection Criteria for Papers
-
-### Backlog (High Priority)
-- **Task 2:** Identify Candidate Papers
-- **Task 3:** Setup Project Repository Structure
-- **Task 7:** Define Evaluation Criteria
-
-### Backlog (Medium Priority)
-- **Task 4:** Research Vector Database Options
-- **Task 5:** Research Embedding Model Options
-- **Task 6:** Document Initial Architecture Decisions
-- **Task 8:** Create Query Test Set
-
----
-
-## Contributing
-
-This is a personal research project. The process of building and learning is the primary output.
-
----
-
-## License
-
-TBD
-
----
-
-## Contact
-
-TBD
-
----
-
 ## Acknowledgments
 
 This project draws inspiration from:
@@ -240,20 +170,4 @@ This project draws inspiration from:
 - Academic research on RAG and multi-agent systems
 - The broader AI safety and governance community
 
----
-
-## Project Status
-
-**Current Phase:** Phase 1 - Corpus Definition  
-**Last Updated:** January 13, 2026  
-**Status:** 🟡 Active Development
-
----
-
-## Quick Links
-
-- [Project Specification](semantic_literature_explorer.md)
-- [Research Questions](research_questions.md)
-- [Paper Selection Criteria](paper_selection_criteria.md)
-- 
 ---
