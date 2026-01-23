@@ -58,7 +58,7 @@ export default function UploadForm() {
   }
 
   async function handleConfirmLoad() {
-    if (!selectedFile) return
+    if (!selectedFile || !summary?.documentMetadata) return
 
     setState('loading')
     setResult(null)
@@ -68,7 +68,7 @@ export default function UploadForm() {
     formData.append('pdf', selectedFile)
 
     try {
-      const response = await uploadAndLoadDocument(formData)
+      const response = await uploadAndLoadDocument(formData, summary.documentMetadata)
 
       if (response.success) {
         setResult({
@@ -192,10 +192,43 @@ export default function UploadForm() {
               marginBottom: '1rem',
             }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Document Summary</h3>
-            <div style={{ marginBottom: '1rem', fontSize: '0.875rem', color: '#666' }}>
-              <strong>File:</strong> {summary.fileName} ({summary.pageCount} pages)
-            </div>
+            <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Document Summary</h3>
+
+            {/* Document Metadata */}
+            {summary.documentMetadata && (
+              <div
+                style={{
+                  marginBottom: '1rem',
+                  padding: '1rem',
+                  backgroundColor: 'white',
+                  borderRadius: '4px',
+                  fontSize: '0.875rem',
+                }}
+              >
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <strong>Title:</strong> {summary.documentMetadata.title}
+                </div>
+                {summary.documentMetadata.authors.length > 0 && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong>Authors:</strong> {summary.documentMetadata.authors.join(', ')}
+                  </div>
+                )}
+                {summary.documentMetadata.publicationYear && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong>Year:</strong> {summary.documentMetadata.publicationYear}
+                  </div>
+                )}
+                {summary.documentMetadata.doi && (
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <strong>DOI:</strong> {summary.documentMetadata.doi}
+                  </div>
+                )}
+                <div>
+                  <strong>File:</strong> {summary.fileName} ({summary.pageCount} pages)
+                </div>
+              </div>
+            )}
+
             <div style={{ lineHeight: '1.6', color: '#333' }}>{summary.summary}</div>
           </div>
 

@@ -2,6 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai'
 import { loadPdfFromBuffer } from '@/lib/pdf/loader'
+import { cleanTitle, cleanAuthors } from '@/lib/utils/textCleaning'
 
 /**
  * Metadata for summarization operation
@@ -19,6 +20,17 @@ export type SummarizationMetadata = {
 }
 
 /**
+ * Document metadata extracted from PDF
+ */
+export type DocumentMetadata = {
+  title: string
+  authors: string[]
+  publicationYear: number | null
+  doi: string | null
+  sourceFile: string
+}
+
+/**
  * Result type for PDF summary operation
  */
 export type SummarizePdfResult = {
@@ -26,6 +38,7 @@ export type SummarizePdfResult = {
   summary?: string
   fileName?: string
   pageCount?: number
+  documentMetadata?: DocumentMetadata
   metadata?: SummarizationMetadata
   error?: string
 }
@@ -116,15 +129,80 @@ Keep the summary to 3-5 sentences.`,
 
     const summary = response.content.toString()
 
-    // Extract token usage from response (handle different response formats)
-    const usage = (response as any).usage_metadata || (response as any).response_metadata?.tokenUsage
-    const promptTokens = usage?.input_tokens || usage?.promptTokens || 0
-    const completionTokens = usage?.output_tokens || usage?.completionTokens || 0
+    // Extract structured metadata
+    const metadataResponse = await llm.invoke([
+      {
+        role: 'system',
+        content: `You are a metadata extraction assistant. Extract the following information from this research paper and return ONLY valid JSON (no markdown, no code blocks):
+
+{
+  "title": "paper title",
+  "authors": ["author1", "author2"],
+  "publicationYear": 2024,
+  "doi": "10.xxxx/xxxxx or null if not found"
+}
+
+IMPORTANT for title formatting:
+- The title in PDFs often has formatting issues (missing spaces, ALL CAPS, line breaks)
+- Fix these issues and return a properly formatted, readable title
+- Use proper capitalization (Title Case)
+- Add spaces where missing (e.g., "GITCONTEXTCONTROLLER" → "Git Context Controller")
+- Fix compound words that are run together (e.g., "Thecontext" → "The Context", "Ofllm" → "Of LLM")
+- Keep acronyms uppercase (LLM, AI, RAG, API, etc.)
+
+If you cannot find a field, use null for strings/numbers or [] for arrays.`,
+      },
+      {
+        role: 'user',
+        content: textToSummarize,
+      },
+    ])
+
+    const metadataText = metadataResponse.content.toString()
+
+    // Parse JSON (handle potential markdown code blocks)
+    let extractedMetadata
+    try {
+      const jsonMatch = metadataText.match(/\{[\s\S]*\}/)
+      const jsonStr = jsonMatch ? jsonMatch[0] : metadataText
+      extractedMetadata = JSON.parse(jsonStr)
+    } catch (e) {
+      // Fallback to defaults if parsing fails
+      extractedMetadata = {
+        title: file.name.replace('.pdf', ''),
+        authors: [],
+        publicationYear: null,
+        doi: null,
+      }
+    }
+
+    const documentMetadata: DocumentMetadata = {
+      title: cleanTitle(extractedMetadata.title || file.name.replace('.pdf', '')),
+      authors: cleanAuthors(
+        Array.isArray(extractedMetadata.authors) ? extractedMetadata.authors : []
+      ),
+      publicationYear: extractedMetadata.publicationYear || null,
+      doi: extractedMetadata.doi || null,
+      sourceFile: file.name,
+    }
+
+    // Extract token usage from both responses (handle different response formats)
+    const summaryUsage = (response as any).usage_metadata || (response as any).response_metadata?.tokenUsage
+    const summaryPromptTokens = summaryUsage?.input_tokens || summaryUsage?.promptTokens || 0
+    const summaryCompletionTokens = summaryUsage?.output_tokens || summaryUsage?.completionTokens || 0
+
+    const metadataUsage =
+      (metadataResponse as any).usage_metadata || (metadataResponse as any).response_metadata?.tokenUsage
+    const metadataPromptTokens = metadataUsage?.input_tokens || metadataUsage?.promptTokens || 0
+    const metadataCompletionTokens = metadataUsage?.output_tokens || metadataUsage?.completionTokens || 0
+
+    const promptTokens = summaryPromptTokens + metadataPromptTokens
+    const completionTokens = summaryCompletionTokens + metadataCompletionTokens
     const totalTokens = promptTokens + completionTokens
 
     // Calculate cost (GPT-4o-mini pricing: $0.15/1M input, $0.60/1M output)
     const inputCost = (promptTokens / 1_000_000) * 0.15
-    const outputCost = (completionTokens / 1_000_000) * 0.60
+    const outputCost = (completionTokens / 1_000_000) * 0.6
     const estimatedCost = inputCost + outputCost
 
     const endTime = performance.now()
@@ -134,6 +212,7 @@ Keep the summary to 3-5 sentences.`,
       summary,
       fileName: file.name,
       pageCount: docs.length,
+      documentMetadata,
       metadata: {
         latencyMs: Math.round(endTime - startTime),
         tokensUsed: {

@@ -1,6 +1,7 @@
 'use server'
 
 import { loadDocumentsFromBuffer, type LoadDocumentsResult } from './loadDocuments'
+import type { DocumentMetadata } from './summarizePdf'
 
 /**
  * Server Action: Handle PDF upload from form and load into vector database
@@ -9,9 +10,13 @@ import { loadDocumentsFromBuffer, type LoadDocumentsResult } from './loadDocumen
  * It extracts the file from FormData, converts to Buffer, and processes it.
  *
  * @param formData - FormData containing the uploaded PDF file
+ * @param documentMetadata - Extracted document metadata (title, authors, etc.)
  * @returns Result with success status and chunks loaded
  */
-export async function uploadAndLoadDocument(formData: FormData): Promise<LoadDocumentsResult> {
+export async function uploadAndLoadDocument(
+  formData: FormData,
+  documentMetadata: DocumentMetadata
+): Promise<LoadDocumentsResult> {
   try {
     // Extract file from FormData
     const file = formData.get('pdf') as File
@@ -36,7 +41,7 @@ export async function uploadAndLoadDocument(formData: FormData): Promise<LoadDoc
     const buffer = Buffer.from(arrayBuffer)
 
     // Use existing loadDocumentsFromBuffer function
-    return await loadDocumentsFromBuffer(buffer, file.name)
+    return await loadDocumentsFromBuffer(buffer, file.name, documentMetadata)
   } catch (error) {
     console.error('Error in uploadAndLoadDocument:', error)
     return {

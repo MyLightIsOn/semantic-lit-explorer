@@ -3,6 +3,7 @@
 import { loadPdfFromPath, loadPdfFromBuffer } from '@/lib/pdf/loader'
 import { splitDocuments } from '@/lib/pdf/splitter'
 import { storeDocuments } from '@/lib/vectordb/store'
+import type { DocumentMetadata } from './summarizePdf'
 
 /**
  * Metadata for document loading operation
@@ -90,12 +91,14 @@ export async function loadDocumentsFromPath(
  *
  * @param buffer - PDF file buffer
  * @param fileName - Original file name
+ * @param documentMetadata - Extracted document metadata (title, authors, etc.)
  * @param tableName - Supabase table name (default: "documents")
  * @returns Result with success status and chunks loaded
  */
 export async function loadDocumentsFromBuffer(
   buffer: Buffer,
   fileName: string,
+  documentMetadata: DocumentMetadata,
   tableName: string = 'documents'
 ): Promise<LoadDocumentsResult> {
   const startTime = performance.now()
@@ -107,7 +110,20 @@ export async function loadDocumentsFromBuffer(
     // Step 2: Split into chunks
     const chunks = await splitDocuments(docs)
 
-    // Step 3 & 4: Generate embeddings and store
+    // Step 3: Add document metadata to each chunk
+    chunks.forEach((chunk) => {
+      chunk.metadata = {
+        ...chunk.metadata,
+        document_title: documentMetadata.title,
+        authors: documentMetadata.authors,
+        publication_year: documentMetadata.publicationYear,
+        doi: documentMetadata.doi,
+        source_file: documentMetadata.sourceFile,
+        upload_date: new Date().toISOString(),
+      }
+    })
+
+    // Step 4 & 5: Generate embeddings and store
     const chunksLoaded = await storeDocuments(chunks, tableName)
 
     // Calculate metadata
