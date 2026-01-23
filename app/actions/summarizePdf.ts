@@ -2,7 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai'
 import { loadPdfFromBuffer } from '@/lib/pdf/loader'
-import { cleanTitle, cleanAuthors } from '@/lib/utils/textCleaning'
+import { cleanTitle, cleanAuthors, extractDOI } from '@/lib/utils/textCleaning'
 
 /**
  * Metadata for summarization operation
@@ -88,9 +88,11 @@ export async function summarizePdf(formData: FormData): Promise<SummarizePdfResu
       }
     }
 
-    // Combine text from all pages (limit to first ~8000 chars for summarization)
-    const fullText = docs.map(doc => doc.pageContent).join('\n\n')
+    // Combine text from all pages
+    const fullText = docs.map((doc) => doc.pageContent).join('\n\n')
     const textToSummarize = fullText.slice(0, 8000)
+    // Use more text for metadata extraction (first 2 pages typically have all metadata)
+    const textForMetadata = fullText.slice(0, 16000)
 
     // Get OpenAI API key
     const openAIApiKey = process.env.OPENAI_API_KEY
@@ -139,7 +141,7 @@ Keep the summary to 3-5 sentences.`,
   "title": "paper title",
   "authors": ["author1", "author2"],
   "publicationYear": 2024,
-  "doi": "10.xxxx/xxxxx or null if not found"
+  "doi": "10.xxxx/xxxxx"
 }
 
 IMPORTANT for title formatting:
@@ -150,11 +152,18 @@ IMPORTANT for title formatting:
 - Fix compound words that are run together (e.g., "Thecontext" → "The Context", "Ofllm" → "Of LLM")
 - Keep acronyms uppercase (LLM, AI, RAG, API, etc.)
 
+IMPORTANT for DOI extraction:
+- Look for DOI in the header, footer, or citation information
+- DOIs follow the pattern: 10.xxxx/xxxxx (e.g., 10.1145/3551349.3556968)
+- May be prefixed with "doi:", "DOI:", or "https://doi.org/"
+- Return ONLY the DOI number (10.xxxx/xxxxx format), not the full URL
+- If no DOI found, return null
+
 If you cannot find a field, use null for strings/numbers or [] for arrays.`,
       },
       {
         role: 'user',
-        content: textToSummarize,
+        content: textForMetadata,
       },
     ])
 
@@ -176,13 +185,19 @@ If you cannot find a field, use null for strings/numbers or [] for arrays.`,
       }
     }
 
+    // If LLM didn't find DOI, try regex extraction as fallback
+    let doi = extractedMetadata.doi || null
+    if (!doi) {
+      doi = extractDOI(fullText)
+    }
+
     const documentMetadata: DocumentMetadata = {
       title: cleanTitle(extractedMetadata.title || file.name.replace('.pdf', '')),
       authors: cleanAuthors(
         Array.isArray(extractedMetadata.authors) ? extractedMetadata.authors : []
       ),
       publicationYear: extractedMetadata.publicationYear || null,
-      doi: extractedMetadata.doi || null,
+      doi,
       sourceFile: file.name,
     }
 

@@ -81,7 +81,7 @@ export default function ChatInterface() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '70vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {/* Message list - scrollable */}
       <div
         style={{
@@ -91,6 +91,7 @@ export default function ChatInterface() {
           border: '1px solid #e0e0e0',
           borderRadius: '8px',
           padding: '1rem',
+          minHeight: 0,
         }}
       >
         {messages.length === 0 ? (

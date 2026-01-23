@@ -83,3 +83,34 @@ export function cleanAuthors(authors: string[]): string[] {
     .map((author) => author.replace(/\s+/g, ' ').trim())
     .filter((author) => author.length > 0)
 }
+
+/**
+ * Extract DOI from text using regex patterns
+ * Looks for common DOI formats:
+ * - 10.xxxx/xxxxx
+ * - doi:10.xxxx/xxxxx
+ * - https://doi.org/10.xxxx/xxxxx
+ */
+export function extractDOI(text: string): string | null {
+  // Common DOI patterns
+  const doiPatterns = [
+    // https://doi.org/10.xxxx/xxxxx
+    /(?:https?:\/\/)?(?:dx\.)?doi\.org\/(10\.\d{4,}\/[^\s]+)/i,
+    // doi:10.xxxx/xxxxx or DOI: 10.xxxx/xxxxx
+    /doi:?\s*(10\.\d{4,}\/[^\s]+)/i,
+    // Plain 10.xxxx/xxxxx (must be preceded by whitespace or start of string)
+    /(?:^|\s)(10\.\d{4,}\/[^\s]+)/i,
+  ]
+
+  for (const pattern of doiPatterns) {
+    const match = text.match(pattern)
+    if (match) {
+      // Extract just the DOI part (10.xxxx/xxxxx)
+      const doi = match[1] || match[0]
+      // Clean up any trailing punctuation
+      return doi.replace(/[.,;)\]]+$/, '')
+    }
+  }
+
+  return null
+}

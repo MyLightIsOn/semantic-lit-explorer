@@ -14,6 +14,7 @@ export default function UploadForm() {
   const [loadingMetadata, setLoadingMetadata] = useState<LoadingMetadata | null>(null)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [manualDoi, setManualDoi] = useState<string>('')
 
   async function handleInitialSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -67,8 +68,14 @@ export default function UploadForm() {
     const formData = new FormData()
     formData.append('pdf', selectedFile)
 
+    // Use manual DOI if provided, otherwise use AI-extracted DOI
+    const finalMetadata = {
+      ...summary.documentMetadata,
+      doi: manualDoi.trim() || summary.documentMetadata.doi,
+    }
+
     try {
-      const response = await uploadAndLoadDocument(formData, summary.documentMetadata)
+      const response = await uploadAndLoadDocument(formData, finalMetadata)
 
       if (response.success) {
         setResult({
@@ -86,6 +93,7 @@ export default function UploadForm() {
           setLoadingMetadata(null)
           setSelectedFile(null)
           setResult(null)
+          setManualDoi('')
         }, 10000)
       } else {
         setResult({
@@ -109,6 +117,7 @@ export default function UploadForm() {
     setLoadingMetadata(null)
     setSelectedFile(null)
     setResult(null)
+    setManualDoi('')
   }
 
   return (
@@ -220,7 +229,15 @@ export default function UploadForm() {
                 )}
                 {summary.documentMetadata.doi && (
                   <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>DOI:</strong> {summary.documentMetadata.doi}
+                    <strong>DOI:</strong>{' '}
+                    <a
+                      href={`https://doi.org/${summary.documentMetadata.doi}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: '#0070f3', textDecoration: 'underline' }}
+                    >
+                      {summary.documentMetadata.doi}
+                    </a>
                   </div>
                 )}
                 <div>
@@ -229,7 +246,55 @@ export default function UploadForm() {
               </div>
             )}
 
-            <div style={{ lineHeight: '1.6', color: '#333' }}>{summary.summary}</div>
+            {/* Manual DOI Input */}
+            <div
+              style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                backgroundColor: '#fff3cd',
+                borderRadius: '4px',
+                border: '1px solid #ffc107',
+              }}
+            >
+              <label
+                htmlFor="manual-doi"
+                style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Manual DOI Override (optional):
+              </label>
+              <input
+                type="text"
+                id="manual-doi"
+                value={manualDoi}
+                onChange={(e) => setManualDoi(e.target.value)}
+                placeholder={
+                  summary.documentMetadata?.doi
+                    ? 'Leave blank to use AI-extracted DOI'
+                    : 'Enter DOI if not auto-detected (e.g., 10.1145/3551349.3556968)'
+                }
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '0.875rem',
+                }}
+              />
+              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+                {summary.documentMetadata?.doi
+                  ? 'AI detected a DOI. Enter here only if you want to override it.'
+                  : 'No DOI was detected. You can manually enter it here.'}
+              </div>
+            </div>
+
+            <div style={{ lineHeight: '1.6', color: '#333', marginTop: '1rem' }}>
+              {summary.summary}
+            </div>
           </div>
 
           {/* Show summarization metadata */}
