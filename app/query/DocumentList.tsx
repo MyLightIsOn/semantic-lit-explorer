@@ -5,7 +5,12 @@ import { getDocuments, type DocumentRecord } from '../actions/getDocuments'
 
 const ITEMS_PER_PAGE = 10
 
-export default function DocumentList() {
+type DocumentListProps = {
+  selectedDocuments: string[]
+  onSelectionChange: (selected: string[]) => void
+}
+
+export default function DocumentList({ selectedDocuments, onSelectionChange }: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,6 +48,25 @@ export default function DocumentList() {
       return 'Unknown'
     }
   }
+
+  const handleSelectAll = () => {
+    const allSourceFiles = documents.map((doc) => doc.source_file).filter(Boolean) as string[]
+    onSelectionChange(allSourceFiles)
+  }
+
+  const handleDeselectAll = () => {
+    onSelectionChange([])
+  }
+
+  const handleToggleDocument = (sourceFile: string) => {
+    if (selectedDocuments.includes(sourceFile)) {
+      onSelectionChange(selectedDocuments.filter((sf) => sf !== sourceFile))
+    } else {
+      onSelectionChange([...selectedDocuments, sourceFile])
+    }
+  }
+
+  const allSelected = documents.length > 0 && selectedDocuments.length === documents.length
 
   if (loading) {
     return (
@@ -82,9 +106,57 @@ export default function DocumentList() {
         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
           Document Library
         </h2>
-        <p style={{ color: '#666', fontSize: '0.875rem' }}>
+        <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
           {documents.length} document{documents.length !== 1 ? 's' : ''} in your library
         </p>
+        {documents.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: '0.5rem',
+              alignItems: 'center',
+              padding: '0.5rem',
+              backgroundColor: '#f5f5f5',
+              borderRadius: '4px',
+            }}
+          >
+            <button
+              onClick={handleSelectAll}
+              disabled={allSelected}
+              style={{
+                padding: '0.375rem 0.75rem',
+                fontSize: '0.75rem',
+                backgroundColor: allSelected ? '#e0e0e0' : '#0070f3',
+                color: allSelected ? '#999' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: allSelected ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Select All
+            </button>
+            <button
+              onClick={handleDeselectAll}
+              disabled={selectedDocuments.length === 0}
+              style={{
+                padding: '0.375rem 0.75rem',
+                fontSize: '0.75rem',
+                backgroundColor: selectedDocuments.length === 0 ? '#e0e0e0' : '#6c757d',
+                color: selectedDocuments.length === 0 ? '#999' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: selectedDocuments.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Deselect All
+            </button>
+            <span style={{ fontSize: '0.75rem', color: '#666', marginLeft: 'auto' }}>
+              {selectedDocuments.length > 0
+                ? `${selectedDocuments.length} selected`
+                : 'None selected (querying all)'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Table */}
@@ -92,6 +164,9 @@ export default function DocumentList() {
         <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '2px solid #e0e0e0' }}>
+              <th style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600', width: '40px' }}>
+                Select
+              </th>
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Title</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Authors</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Year</th>
@@ -101,15 +176,29 @@ export default function DocumentList() {
             </tr>
           </thead>
           <tbody>
-            {currentDocuments.map((doc, idx) => (
-              <tr
-                key={doc.source_file || idx}
-                style={{
-                  borderBottom: '1px solid #e0e0e0',
-                  backgroundColor: idx % 2 === 0 ? 'white' : '#fafafa',
-                }}
-              >
-                <td
+            {currentDocuments.map((doc, idx) => {
+              const isSelected = doc.source_file ? selectedDocuments.includes(doc.source_file) : false
+              return (
+                <tr
+                  key={doc.source_file || idx}
+                  style={{
+                    borderBottom: '1px solid #e0e0e0',
+                    backgroundColor: isSelected
+                      ? '#e3f2fd'
+                      : idx % 2 === 0
+                        ? 'white'
+                        : '#fafafa',
+                  }}
+                >
+                  <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => doc.source_file && handleToggleDocument(doc.source_file)}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                    />
+                  </td>
+                  <td
                   style={{
                     padding: '0.75rem',
                     fontWeight: '500',
@@ -168,7 +257,8 @@ export default function DocumentList() {
                   {doc.chunk_count}
                 </td>
               </tr>
-            ))}
+              )
+            })}
           </tbody>
         </table>
       </div>

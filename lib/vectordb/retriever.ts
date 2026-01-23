@@ -1,5 +1,6 @@
 import { SupabaseVectorStore } from '@langchain/community/vectorstores/supabase'
 import { VectorStoreRetriever } from '@langchain/core/vectorstores'
+import { Document } from '@langchain/core/documents'
 import { getSupabaseClient } from './supabase'
 import { getEmbeddings } from './embeddings'
 
@@ -12,12 +13,14 @@ import { getEmbeddings } from './embeddings'
  * @param tableName - Name of Supabase table (default: "documents")
  * @param queryName - Name of the match function in Supabase (default: "match_documents")
  * @param k - Number of documents to retrieve (default: 4)
+ * @param filter - Optional metadata filter (e.g., { source_file: { $in: ["file1.pdf", "file2.pdf"] } })
  * @returns VectorStoreRetriever configured for the vector database
  */
 export function getRetriever(
   tableName: string = 'documents',
   queryName: string = 'match_documents',
-  k: number = 4
+  k: number = 4,
+  filter?: Record<string, any>
 ): VectorStoreRetriever<SupabaseVectorStore> {
   const supabase = getSupabaseClient()
   const embeddings = getEmbeddings()
@@ -28,5 +31,55 @@ export function getRetriever(
     queryName,
   })
 
-  return vectorStore.asRetriever({ k })
+  return vectorStore.asRetriever({
+    k,
+    filter,
+  })
+}
+
+/**
+ * Retrieve documents with source file filtering
+ *
+ * This directly calls the match_documents function with source_files parameter
+ * for more efficient filtering than JSONB metadata queries.
+ *
+ * @param query - The query string to search for
+ * @param sourceFiles - Optional array of source file names to filter by
+ * @param k - Number of documents to retrieve (default: 4)
+ * @returns Array of Document objects
+ */
+export async function retrieveDocuments(
+  query: string,
+  sourceFiles?: string[],
+  k: number = 4
+): Promise<Document[]> {
+  const supabase = getSupabaseClient()
+  const embeddingsModel = getEmbeddings()
+
+  // Generate embedding for the query
+  const queryEmbedding = await embeddingsModel.embedQuery(query)
+
+  // Call the match_documents function with source_files parameter
+  const { data, error } = await supabase.rpc('match_documents', {
+    query_embedding: queryEmbedding,
+    filter: {},
+    match_count: k,
+    source_files: sourceFiles || null,
+  })
+
+  if (error) {
+    throw new Error(`Failed to retrieve documents: ${error.message}`)
+  }
+
+  if (!data) {
+    return []
+  }
+
+  // Convert to LangChain Document format
+  return data.map((row: any) => {
+    return new Document({
+      pageContent: row.content,
+      metadata: row.metadata || {},
+    })
+  })
 }

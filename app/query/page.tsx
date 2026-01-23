@@ -1,8 +1,13 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
 import ChatInterface from './ChatInterface'
 import DocumentList from './DocumentList'
 
 export default function QueryPage() {
+  const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
@@ -26,7 +31,10 @@ export default function QueryPage() {
             overflowY: 'auto',
           }}
         >
-          <DocumentList />
+          <DocumentList
+            selectedDocuments={selectedDocuments}
+            onSelectionChange={setSelectedDocuments}
+          />
         </div>
 
         {/* Right Side - Chat Interface */}
@@ -46,7 +54,7 @@ export default function QueryPage() {
               Ask questions about your research papers using semantic search
             </p>
           </div>
-          <ChatInterface />
+          <ChatInterface selectedDocuments={selectedDocuments} />
         </div>
       </div>
     </div>

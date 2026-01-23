@@ -13,7 +13,11 @@ type Message = {
   timestamp: Date
 }
 
-export default function ChatInterface() {
+type ChatInterfaceProps = {
+  selectedDocuments: string[]
+}
+
+export default function ChatInterface({ selectedDocuments }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -42,8 +46,8 @@ export default function ChatInterface() {
     setIsLoading(true)
 
     try {
-      // Call Server Action
-      const result = await queryDocuments(trimmedInput)
+      // Call Server Action with optional document filtering
+      const result = await queryDocuments(trimmedInput, selectedDocuments.length > 0 ? selectedDocuments : undefined)
 
       if (result.success && result.answer) {
         // Add assistant message
@@ -82,6 +86,23 @@ export default function ChatInterface() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* Query scope indicator */}
+      <div
+        style={{
+          padding: '0.5rem 0.75rem',
+          backgroundColor: selectedDocuments.length > 0 ? '#fff3cd' : '#e3f2fd',
+          borderRadius: '4px',
+          marginBottom: '1rem',
+          fontSize: '0.875rem',
+          border: `1px solid ${selectedDocuments.length > 0 ? '#ffc107' : '#90caf9'}`,
+        }}
+      >
+        <strong>Query Scope:</strong>{' '}
+        {selectedDocuments.length > 0
+          ? `Searching ${selectedDocuments.length} selected document${selectedDocuments.length !== 1 ? 's' : ''}`
+          : 'Searching all documents'}
+      </div>
+
       {/* Message list - scrollable */}
       <div
         style={{

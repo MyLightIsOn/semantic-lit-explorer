@@ -3,7 +3,7 @@
 import { ChatOpenAI } from '@langchain/openai'
 import { PromptTemplate } from '@langchain/core/prompts'
 import { StringOutputParser } from '@langchain/core/output_parsers'
-import { getRetriever } from '@/lib/vectordb/retriever'
+import { retrieveDocuments } from '@/lib/vectordb/retriever'
 
 export type PipelineSteps = {
   reformulatedQuestion: string
@@ -41,7 +41,10 @@ export type QueryResult = {
   error?: string
 }
 
-export async function queryDocuments(question: string): Promise<QueryResult> {
+export async function queryDocuments(
+  question: string,
+  selectedDocuments?: string[]
+): Promise<QueryResult> {
   try {
     const overallStartTime = performance.now()
 
@@ -75,21 +78,48 @@ export async function queryDocuments(question: string): Promise<QueryResult> {
 
     // Step 2: Retrieve documents
     const retrievalStartTime = performance.now()
-    const retriever = getRetriever()
-    const retrievedDocs = await retriever.invoke(reformulatedQuestion)
+    // If specific documents are selected, filter by source_file
+    const sourceFiles =
+      selectedDocuments && selectedDocuments.length > 0 ? selectedDocuments : undefined
+
+    console.log('[queryDocuments] Filtering by source files:', sourceFiles)
+    const retrievedDocs = await retrieveDocuments(reformulatedQuestion, sourceFiles, 4)
+    console.log('[queryDocuments] Retrieved docs:', retrievedDocs.map(d => ({
+      source: d.metadata.source_file,
+      preview: d.pageContent.substring(0, 100)
+    })))
+
     const retrievalEndTime = performance.now()
     const retrievalLatency = retrievalEndTime - retrievalStartTime
 
     const documentsRetrieved = retrievedDocs.length
-    const documentSnippets = retrievedDocs.map((doc) => doc.pageContent.substring(0, 200) + '...')
+    const documentSnippets = retrievedDocs.map((doc) => {
+      const source = doc.metadata.source_file || 'unknown'
+      return `[${source}] ${doc.pageContent.substring(0, 150)}...`
+    })
 
     // Combine documents for context
     const context = retrievedDocs.map((doc) => doc.pageContent).join('\n\n')
 
     // Step 3: Generate answer
     const answerStartTime = performance.now()
-    const answerTemplate =
-      'You are a research assistant. You will answer questions from the user given the context provided. If you do not know the answer or it is not available in the information provided, please provide a detailed explanation of why you cannot answer the question and recommend to the user what they should do instead. DO NOT try to make up an answer. Question: {question} Context: {context}'
+    const answerTemplate = `You are a research assistant helping analyze academic papers.
+
+Answer the user's question using ONLY the context provided below. The context consists of relevant excerpts from research papers.
+
+IMPORTANT:
+- Base your answer entirely on the provided context
+- Quote or reference specific parts of the context when possible
+- If the context doesn't contain enough information to fully answer the question, say so clearly
+- DO NOT make up information or use knowledge outside the provided context
+- If multiple papers are mentioned in the context, clarify which paper each point comes from
+
+Question: {question}
+
+Context from research papers:
+{context}
+
+Answer:`
     const answerPrompt = PromptTemplate.fromTemplate(answerTemplate)
     const answerChain = answerPrompt.pipe(llm).pipe(new StringOutputParser())
 
