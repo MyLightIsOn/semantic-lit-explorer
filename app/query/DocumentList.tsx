@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { getDocuments, type DocumentRecord } from '../actions/getDocuments'
+import { deleteDocuments } from '../actions/deleteDocuments'
 
 const ITEMS_PER_PAGE = 10
 
@@ -15,6 +16,9 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletionInProgress, setDeletionInProgress] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchDocuments() {
@@ -64,6 +68,45 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
     } else {
       onSelectionChange([...selectedDocuments, sourceFile])
     }
+  }
+
+  const handleDeleteClick = () => {
+    setDeleteError(null)
+    setShowDeleteDialog(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    setDeletionInProgress(true)
+    setDeleteError(null)
+
+    const result = await deleteDocuments(selectedDocuments)
+
+    if (result.success) {
+      // Refresh document list
+      const documentsResult = await getDocuments()
+      if (documentsResult.success && documentsResult.documents) {
+        setDocuments(documentsResult.documents)
+
+        // Adjust current page if needed
+        const newTotalPages = Math.ceil(documentsResult.documents.length / ITEMS_PER_PAGE)
+        if (currentPage > newTotalPages && newTotalPages > 0) {
+          setCurrentPage(newTotalPages)
+        }
+      }
+
+      // Clear selection
+      onSelectionChange([])
+      setShowDeleteDialog(false)
+    } else {
+      setDeleteError(result.error || 'Failed to delete documents')
+    }
+
+    setDeletionInProgress(false)
+  }
+
+  const handleDeleteCancel = () => {
+    setShowDeleteDialog(false)
+    setDeleteError(null)
   }
 
   const allSelected = documents.length > 0 && selectedDocuments.length === documents.length
@@ -149,6 +192,21 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
               }}
             >
               Deselect All
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              disabled={selectedDocuments.length === 0}
+              style={{
+                padding: '0.375rem 0.75rem',
+                fontSize: '0.75rem',
+                backgroundColor: selectedDocuments.length === 0 ? '#e0e0e0' : '#dc3545',
+                color: selectedDocuments.length === 0 ? '#999' : 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: selectedDocuments.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Delete Selected ({selectedDocuments.length})
             </button>
             <span style={{ fontSize: '0.75rem', color: '#666', marginLeft: 'auto' }}>
               {selectedDocuments.length > 0
@@ -306,6 +364,123 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={handleDeleteCancel}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '2rem',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1rem' }}>
+              ⚠️ Confirm Deletion
+            </h3>
+
+            <p style={{ color: '#666', marginBottom: '1rem' }}>
+              You are about to permanently delete {selectedDocuments.length} document
+              {selectedDocuments.length !== 1 ? 's' : ''}:
+            </p>
+
+            <div
+              style={{
+                backgroundColor: '#f5f5f5',
+                padding: '1rem',
+                borderRadius: '4px',
+                marginBottom: '1rem',
+                maxHeight: '200px',
+                overflowY: 'auto',
+              }}
+            >
+              {selectedDocuments.slice(0, 5).map((sourceFile) => {
+                const doc = documents.find((d) => d.source_file === sourceFile)
+                return (
+                  <div key={sourceFile} style={{ marginBottom: '0.5rem' }}>
+                    <strong>{doc?.document_title || sourceFile}</strong>
+                  </div>
+                )
+              })}
+              {selectedDocuments.length > 5 && (
+                <div style={{ color: '#666', fontStyle: 'italic' }}>
+                  +{selectedDocuments.length - 5} more...
+                </div>
+              )}
+            </div>
+
+            <p style={{ color: '#dc3545', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+              This action cannot be undone. All chunks and vectors will be permanently removed.
+            </p>
+
+            {deleteError && (
+              <div
+                style={{
+                  backgroundColor: '#f8d7da',
+                  color: '#721c24',
+                  padding: '0.75rem',
+                  borderRadius: '4px',
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Error: {deleteError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deletionInProgress}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: deletionInProgress ? 'not-allowed' : 'pointer',
+                  opacity: deletionInProgress ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deletionInProgress}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: deletionInProgress ? 'not-allowed' : 'pointer',
+                  opacity: deletionInProgress ? 0.5 : 1,
+                }}
+              >
+                {deletionInProgress ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}
