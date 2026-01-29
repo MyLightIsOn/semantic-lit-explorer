@@ -200,6 +200,7 @@ If you cannot find a field, use null for strings/numbers or [] for arrays.`,
       publicationYear: extractedMetadata.publicationYear || null,
       doi,
       sourceFile: file.name,
+      project: null,
     }
 
     // Extract token usage from both responses (handle different response formats)

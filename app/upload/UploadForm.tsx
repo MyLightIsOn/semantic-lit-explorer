@@ -1,433 +1,333 @@
 'use client'
 
 import { useState } from 'react'
-import { summarizePdf, type SummarizePdfResult } from '../actions/summarizePdf'
+import { summarizePdf } from '../actions/summarizePdf'
 import { uploadAndLoadDocument } from '../actions/uploadDocument'
-import { type LoadingMetadata } from '../actions/loadDocuments'
-import MetadataDisplay from './MetadataDisplay'
-
-type UploadState = 'idle' | 'summarizing' | 'reviewing' | 'loading' | 'complete'
+import type { DocumentMetadata } from '../actions/summarizePdf'
+import FileTable, { type FileEntry } from './FileTable'
+import SummaryModal from './SummaryModal'
 
 export default function UploadForm() {
-  const [state, setState] = useState<UploadState>('idle')
-  const [summary, setSummary] = useState<SummarizePdfResult | null>(null)
-  const [loadingMetadata, setLoadingMetadata] = useState<LoadingMetadata | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
-  const [manualDoi, setManualDoi] = useState<string>('')
+  const [files, setFiles] = useState<FileEntry[]>([])
   const [projectName, setProjectName] = useState<string>('')
+  const [modalFile, setModalFile] = useState<FileEntry | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
 
-  async function handleInitialSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setState('summarizing')
-    setResult(null)
-    setSummary(null)
+  function handleFilesSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(e.target.files || [])
 
-    const formData = new FormData(e.currentTarget)
-    const file = formData.get('pdf') as File
+    if (selectedFiles.length === 0) return
 
-    if (!file || file.size === 0) {
-      setResult({ success: false, message: 'Please select a PDF file' })
-      setState('idle')
-      return
-    }
+    const newEntries: FileEntry[] = selectedFiles.map((file) => ({
+      id: `${Date.now()}-${Math.random()}`,
+      file,
+      status: 'pending' as const,
+    }))
 
-    // Store file for later use
-    setSelectedFile(file)
+    setFiles((prev) => [...prev, ...newEntries])
+
+    // Reset file input
+    e.target.value = ''
+  }
+
+  async function handleSummarize(fileId: string) {
+    const entry = files.find((f) => f.id === fileId)
+    if (!entry) return
+
+    // Update status to summarizing
+    setFiles((prev) =>
+      prev.map((f) => (f.id === fileId ? { ...f, status: 'summarizing' as const } : f))
+    )
 
     try {
-      const summaryResult = await summarizePdf(formData)
+      const formData = new FormData()
+      formData.append('pdf', entry.file)
 
-      if (summaryResult.success) {
-        setSummary(summaryResult)
-        setState('reviewing')
+      const result = await summarizePdf(formData)
+
+      if (result.success) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? { ...f, status: 'summarized' as const, summary: result }
+              : f
+          )
+        )
       } else {
-        setResult({
-          success: false,
-          message: `❌ Error: ${summaryResult.error}`,
-        })
-        setState('idle')
-        setSelectedFile(null)
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileId
+              ? { ...f, status: 'error' as const, error: result.error || 'Summarization failed' }
+              : f
+          )
+        )
       }
     } catch (error) {
-      setResult({
-        success: false,
-        message: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      })
-      setState('idle')
-      setSelectedFile(null)
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === fileId
+            ? {
+                ...f,
+                status: 'error' as const,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              }
+            : f
+        )
+      )
     }
   }
 
-  async function handleConfirmLoad() {
-    if (!selectedFile || !summary?.documentMetadata) return
+  async function handleUploadAll() {
+    setIsUploading(true)
 
-    setState('loading')
-    setResult(null)
-    setLoadingMetadata(null)
+    for (const entry of files) {
+      // Skip files that are already complete or currently in error state that we're retrying
+      if (entry.status === 'complete') continue
 
-    const formData = new FormData()
-    formData.append('pdf', selectedFile)
+      // Update status to uploading
+      setFiles((prev) =>
+        prev.map((f) => (f.id === entry.id ? { ...f, status: 'uploading' as const } : f))
+      )
 
-    // Use manual DOI if provided, otherwise use AI-extracted DOI
-    const finalMetadata = {
-      ...summary.documentMetadata,
-      doi: manualDoi.trim() || summary.documentMetadata.doi,
-      project: projectName.trim() || null,
-    }
-
-    try {
-      const response = await uploadAndLoadDocument(formData, finalMetadata)
-
-      if (response.success) {
-        setResult({
-          success: true,
-          message: `✅ Successfully loaded ${response.chunksLoaded} chunks from ${selectedFile.name}`,
-        })
-        if (response.metadata) {
-          setLoadingMetadata(response.metadata)
+      try {
+        // Use AI-extracted metadata if available, otherwise use defaults
+        const metadata: DocumentMetadata = entry.summary?.documentMetadata ?? {
+          title: entry.file.name.replace('.pdf', ''),
+          authors: [],
+          publicationYear: null,
+          doi: null,
+          sourceFile: entry.file.name,
+          project: null,
         }
-        setState('complete')
-        // Reset after a delay
-        setTimeout(() => {
-          setState('idle')
-          setSummary(null)
-          setLoadingMetadata(null)
-          setSelectedFile(null)
-          setResult(null)
-          setManualDoi('')
-          setProjectName('')
-        }, 10000)
-      } else {
-        setResult({
-          success: false,
-          message: `❌ Error: ${response.error}`,
-        })
-        setState('reviewing')
+
+        // Add project to metadata
+        const finalMetadata: DocumentMetadata = {
+          ...metadata,
+          project: projectName.trim() || null,
+        }
+
+        const formData = new FormData()
+        formData.append('pdf', entry.file)
+
+        const result = await uploadAndLoadDocument(formData, finalMetadata)
+
+        if (result.success) {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === entry.id
+                ? {
+                    ...f,
+                    status: 'complete' as const,
+                    loadingMetadata: result.metadata,
+                  }
+                : f
+            )
+          )
+        } else {
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === entry.id
+                ? {
+                    ...f,
+                    status: 'error' as const,
+                    error: result.error || 'Upload failed',
+                  }
+                : f
+            )
+          )
+        }
+      } catch (error) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === entry.id
+              ? {
+                  ...f,
+                  status: 'error' as const,
+                  error: error instanceof Error ? error.message : 'Unknown error',
+                }
+              : f
+          )
+        )
       }
-    } catch (error) {
-      setResult({
-        success: false,
-        message: `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      })
-      setState('reviewing')
+    }
+
+    setIsUploading(false)
+  }
+
+  function handleRemoveFile(fileId: string) {
+    setFiles((prev) => prev.filter((f) => f.id !== fileId))
+  }
+
+  function handleViewSummary(fileId: string) {
+    const entry = files.find((f) => f.id === fileId)
+    if (entry && entry.summary) {
+      setModalFile(entry)
     }
   }
 
-  function handleCancel() {
-    setState('idle')
-    setSummary(null)
-    setLoadingMetadata(null)
-    setSelectedFile(null)
-    setResult(null)
-    setManualDoi('')
+  function handleClearAll() {
+    setFiles([])
     setProjectName('')
   }
 
+  const hasFiles = files.length > 0
+  const allComplete = files.every((f) => f.status === 'complete')
+  const hasErrors = files.some((f) => f.status === 'error')
+
   return (
     <div>
-      {/* Initial Upload Form */}
-      {(state === 'idle' || state === 'summarizing') && (
-        <form onSubmit={handleInitialSubmit} style={{ marginBottom: '2rem' }}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label
-              htmlFor="pdf"
-              style={{
-                display: 'block',
-                marginBottom: '0.5rem',
-                fontWeight: '500',
-              }}
-            >
-              Select PDF file:
-            </label>
-            <input
-              type="file"
-              id="pdf"
-              name="pdf"
-              accept=".pdf,application/pdf"
-              required
-              disabled={state === 'summarizing'}
-              style={{
-                display: 'block',
-                padding: '0.5rem',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                width: '100%',
-              }}
-            />
-          </div>
+      {/* File Input */}
+      <div style={{ marginBottom: '1rem' }}>
+        <label
+          htmlFor="pdf"
+          style={{
+            display: 'block',
+            marginBottom: '0.5rem',
+            fontWeight: '500',
+          }}
+        >
+          Select PDF file(s):
+        </label>
+        <input
+          type="file"
+          id="pdf"
+          name="pdf"
+          accept=".pdf,application/pdf"
+          multiple
+          onChange={handleFilesSelected}
+          disabled={isUploading}
+          style={{
+            display: 'block',
+            padding: '0.5rem',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            width: '100%',
+          }}
+        />
+        <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+          You can select multiple PDF files at once
+        </p>
+      </div>
 
+      {/* Project Input */}
+      {hasFiles && (
+        <div style={{ marginBottom: '1rem' }}>
+          <label
+            htmlFor="project-name"
+            style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontWeight: '500',
+              fontSize: '0.875rem',
+            }}
+          >
+            Project (optional, applies to all files):
+          </label>
+          <input
+            type="text"
+            id="project-name"
+            value={projectName}
+            onChange={(e) => setProjectName(e.target.value)}
+            placeholder="e.g., Vector Databases, RAG Systems, LLM Architectures"
+            disabled={isUploading}
+            style={{
+              width: '100%',
+              padding: '0.5rem',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontSize: '0.875rem',
+            }}
+          />
+          <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+            Organize all uploaded documents by research topic
+          </div>
+        </div>
+      )}
+
+      {/* File Table */}
+      {hasFiles && (
+        <FileTable
+          files={files}
+          onSummarize={handleSummarize}
+          onRemove={handleRemoveFile}
+          onViewSummary={handleViewSummary}
+          isUploading={isUploading}
+        />
+      )}
+
+      {/* Action Buttons */}
+      {hasFiles && (
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
           <button
-            type="submit"
-            disabled={state === 'summarizing'}
+            onClick={handleUploadAll}
+            disabled={isUploading || allComplete}
             style={{
               padding: '0.75rem 1.5rem',
-              backgroundColor: state === 'summarizing' ? '#ccc' : '#0070f3',
+              backgroundColor: isUploading || allComplete ? '#ccc' : '#28a745',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: state === 'summarizing' ? 'not-allowed' : 'pointer',
+              cursor: isUploading || allComplete ? 'not-allowed' : 'pointer',
               fontWeight: '500',
               fontSize: '1rem',
             }}
           >
-            {state === 'summarizing' ? 'Generating Summary...' : 'Upload and Summarize'}
+            {isUploading ? 'Uploading...' : allComplete ? 'All Complete' : 'Upload All'}
           </button>
-        </form>
+          <button
+            onClick={handleClearAll}
+            disabled={isUploading}
+            style={{
+              padding: '0.75rem 1.5rem',
+              backgroundColor: isUploading ? '#e0e0e0' : '#6c757d',
+              color: isUploading ? '#999' : 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isUploading ? 'not-allowed' : 'pointer',
+              fontWeight: '500',
+              fontSize: '1rem',
+            }}
+          >
+            Clear All
+          </button>
+        </div>
       )}
 
-      {/* Summarizing Progress */}
-      {state === 'summarizing' && (
+      {/* Status Messages */}
+      {allComplete && hasFiles && (
         <div
           style={{
             padding: '1rem',
-            backgroundColor: '#f0f0f0',
+            backgroundColor: '#d4edda',
+            color: '#155724',
             borderRadius: '4px',
+            border: '1px solid #c3e6cb',
             marginBottom: '1rem',
           }}
         >
-          <p style={{ margin: 0 }}>⏳ Extracting text and generating AI summary...</p>
-          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#666' }}>
-            This may take 30 seconds.
-          </p>
+          ✅ All documents uploaded successfully! {files.length} file
+          {files.length !== 1 ? 's' : ''} processed.
         </div>
       )}
 
-      {/* Summary Review */}
-      {state === 'reviewing' && summary && (
-        <div style={{ marginBottom: '2rem' }}>
-          <div
-            style={{
-              padding: '1.5rem',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '4px',
-              border: '1px solid #dee2e6',
-              marginBottom: '1rem',
-            }}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Document Summary</h3>
-
-            {/* Document Metadata */}
-            {summary.documentMetadata && (
-              <div
-                style={{
-                  marginBottom: '1rem',
-                  padding: '1rem',
-                  backgroundColor: 'white',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem',
-                }}
-              >
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <strong>Title:</strong> {summary.documentMetadata.title}
-                </div>
-                {summary.documentMetadata.authors.length > 0 && (
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>Authors:</strong> {summary.documentMetadata.authors.join(', ')}
-                  </div>
-                )}
-                {summary.documentMetadata.publicationYear && (
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>Year:</strong> {summary.documentMetadata.publicationYear}
-                  </div>
-                )}
-                {summary.documentMetadata.doi && (
-                  <div style={{ marginBottom: '0.5rem' }}>
-                    <strong>DOI:</strong>{' '}
-                    <a
-                      href={`https://doi.org/${summary.documentMetadata.doi}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ color: '#0070f3', textDecoration: 'underline' }}
-                    >
-                      {summary.documentMetadata.doi}
-                    </a>
-                  </div>
-                )}
-                <div>
-                  <strong>File:</strong> {summary.fileName} ({summary.pageCount} pages)
-                </div>
-              </div>
-            )}
-
-            {/* Manual DOI Input */}
-            <div
-              style={{
-                marginTop: '1rem',
-                padding: '1rem',
-                backgroundColor: '#fff3cd',
-                borderRadius: '4px',
-                border: '1px solid #ffc107',
-              }}
-            >
-              <label
-                htmlFor="manual-doi"
-                style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  fontWeight: '500',
-                  fontSize: '0.875rem',
-                }}
-              >
-                Manual DOI Override (optional):
-              </label>
-              <input
-                type="text"
-                id="manual-doi"
-                value={manualDoi}
-                onChange={(e) => setManualDoi(e.target.value)}
-                placeholder={
-                  summary.documentMetadata?.doi
-                    ? 'Leave blank to use AI-extracted DOI'
-                    : 'Enter DOI if not auto-detected (e.g., 10.1145/3551349.3556968)'
-                }
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem',
-                }}
-              />
-              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
-                {summary.documentMetadata?.doi
-                  ? 'AI detected a DOI. Enter here only if you want to override it.'
-                  : 'No DOI was detected. You can manually enter it here.'}
-              </div>
-            </div>
-
-            {/* Project Assignment */}
-            <div
-              style={{
-                marginTop: '1rem',
-                padding: '1rem',
-                backgroundColor: 'white',
-                borderRadius: '4px',
-              }}
-            >
-              <label
-                htmlFor="project-name"
-                style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  fontWeight: '500',
-                  fontSize: '0.875rem',
-                }}
-              >
-                Project (optional):
-              </label>
-              <input
-                type="text"
-                id="project-name"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="e.g., Vector Databases, RAG Systems, LLM Architectures"
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '0.875rem',
-                }}
-              />
-              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
-                Organize documents by research topic. Leave blank for unassigned documents.
-              </div>
-            </div>
-
-            <div style={{ lineHeight: '1.6', color: '#333', marginTop: '1rem' }}>
-              {summary.summary}
-            </div>
-          </div>
-
-          {/* Show summarization metadata */}
-          {summary.metadata && (
-            <div style={{ marginBottom: '1rem' }}>
-              <MetadataDisplay type="summarization" metadata={summary.metadata} />
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button
-              onClick={handleConfirmLoad}
-              style={{
-                padding: '0.75rem 1.5rem',
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: '500',
-                fontSize: '1rem',
-              }}
-            >
-              ✓ Confirm and Load to Database
-            </button>
-            <button
-              onClick={handleCancel}
-              style={{
-                padding: '0.75rem 1.5rem',
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: '500',
-                fontSize: '1rem',
-              }}
-            >
-              ✗ Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Loading Progress */}
-      {state === 'loading' && (
+      {hasErrors && !isUploading && (
         <div
           style={{
             padding: '1rem',
-            backgroundColor: '#f0f0f0',
+            backgroundColor: '#fff3cd',
+            color: '#856404',
             borderRadius: '4px',
+            border: '1px solid #ffc107',
             marginBottom: '1rem',
           }}
         >
-          <p style={{ margin: 0 }}>
-            ⏳ Loading into database: splitting text, generating embeddings, and storing...
-          </p>
-          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem', color: '#666' }}>
-            This may take a minute depending on the PDF size.
-          </p>
+          ⚠️ Some files had errors. You can retry by clicking "Upload All" again or remove the
+          failed files.
         </div>
       )}
 
-      {/* Result Message */}
-      {result && (
-        <>
-          <div
-            style={{
-              padding: '1rem',
-              backgroundColor: result.success ? '#d4edda' : '#f8d7da',
-              color: result.success ? '#155724' : '#721c24',
-              borderRadius: '4px',
-              border: `1px solid ${result.success ? '#c3e6cb' : '#f5c6cb'}`,
-              marginBottom: loadingMetadata ? '1rem' : 0,
-            }}
-          >
-            <p style={{ margin: 0 }}>{result.message}</p>
-            {state === 'complete' && (
-              <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.875rem' }}>
-                Form will reset in 10 seconds...
-              </p>
-            )}
-          </div>
-
-          {/* Show loading metadata after successful load */}
-          {loadingMetadata && state === 'complete' && (
-            <MetadataDisplay type="loading" metadata={loadingMetadata} />
-          )}
-        </>
-      )}
+      {/* Summary Modal */}
+      {modalFile && <SummaryModal fileEntry={modalFile} onClose={() => setModalFile(null)} />}
     </div>
   )
 }
