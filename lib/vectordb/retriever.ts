@@ -61,13 +61,13 @@ export async function retrieveDocuments(
   // Generate embedding for the query
   const queryEmbedding = await embeddingsModel.embedQuery(query)
 
-  // Call the match_documents function with source_files and project parameters
+  // Call the match_documents function with source_files and project_filter parameters
   const { data, error } = await supabase.rpc('match_documents', {
     query_embedding: queryEmbedding,
     filter: {},
     match_count: k,
     source_files: sourceFiles || null,
-    project: project || null,
+    project_filter: project || null,
   })
 
   if (error) {
