@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { getDocuments, type DocumentRecord } from '../actions/getDocuments'
+import { getDocuments, getProjects, type DocumentRecord } from '../actions/getDocuments'
 import { deleteDocuments } from '../actions/deleteDocuments'
 
 const ITEMS_PER_PAGE = 10
@@ -9,9 +9,16 @@ const ITEMS_PER_PAGE = 10
 type DocumentListProps = {
   selectedDocuments: string[]
   onSelectionChange: (selected: string[]) => void
+  selectedProject: string
+  onProjectChange: (project: string) => void
 }
 
-export default function DocumentList({ selectedDocuments, onSelectionChange }: DocumentListProps) {
+export default function DocumentList({
+  selectedDocuments,
+  onSelectionChange,
+  selectedProject,
+  onProjectChange
+}: DocumentListProps) {
   const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -19,6 +26,7 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deletionInProgress, setDeletionInProgress] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [availableProjects, setAvailableProjects] = useState<string[]>([])
 
   useEffect(() => {
     async function fetchDocuments() {
@@ -39,10 +47,28 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
     fetchDocuments()
   }, [])
 
-  const totalPages = Math.ceil(documents.length / ITEMS_PER_PAGE)
+  useEffect(() => {
+    async function fetchProjects() {
+      const result = await getProjects()
+      if (result.success && result.projects) {
+        setAvailableProjects(result.projects)
+      }
+    }
+
+    fetchProjects()
+  }, [])
+
+  // Filter documents by selected project
+  const filteredDocuments = selectedProject === '__unassigned__'
+    ? documents.filter((doc) => !doc.project)
+    : selectedProject
+      ? documents.filter((doc) => doc.project === selectedProject)
+      : documents
+
+  const totalPages = Math.ceil(filteredDocuments.length / ITEMS_PER_PAGE)
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
   const endIndex = startIndex + ITEMS_PER_PAGE
-  const currentDocuments = documents.slice(startIndex, endIndex)
+  const currentDocuments = filteredDocuments.slice(startIndex, endIndex)
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Unknown'
@@ -54,7 +80,7 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
   }
 
   const handleSelectAll = () => {
-    const allSourceFiles = documents.map((doc) => doc.source_file).filter(Boolean) as string[]
+    const allSourceFiles = filteredDocuments.map((doc) => doc.source_file).filter(Boolean) as string[]
     onSelectionChange(allSourceFiles)
   }
 
@@ -109,7 +135,7 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
     setDeleteError(null)
   }
 
-  const allSelected = documents.length > 0 && selectedDocuments.length === documents.length
+  const allSelected = filteredDocuments.length > 0 && selectedDocuments.length === filteredDocuments.length
 
   if (loading) {
     return (
@@ -151,7 +177,53 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
         </h2>
         <p style={{ color: '#666', fontSize: '0.875rem', marginBottom: '0.75rem' }}>
           {documents.length} document{documents.length !== 1 ? 's' : ''} in your library
+          {selectedProject && ` (${filteredDocuments.length} in ${selectedProject === '__unassigned__' ? 'Unassigned' : selectedProject})`}
         </p>
+
+        {/* Project Filter */}
+        {availableProjects.length > 0 && (
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label
+              htmlFor="project-filter"
+              style={{
+                display: 'block',
+                fontSize: '0.875rem',
+                fontWeight: '500',
+                marginBottom: '0.25rem',
+              }}
+            >
+              Filter by Project:
+            </label>
+            <select
+              id="project-filter"
+              value={selectedProject}
+              onChange={(e) => {
+                onProjectChange(e.target.value)
+                setCurrentPage(1)
+              }}
+              style={{
+                padding: '0.5rem',
+                fontSize: '0.875rem',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                backgroundColor: 'white',
+                cursor: 'pointer',
+                minWidth: '300px',
+              }}
+            >
+              <option value="">All Projects ({documents.length} documents)</option>
+              {availableProjects.map((proj) => (
+                <option key={proj} value={proj}>
+                  {proj} ({documents.filter((d) => d.project === proj).length})
+                </option>
+              ))}
+              <option value="__unassigned__">
+                Unassigned ({documents.filter((d) => !d.project).length})
+              </option>
+            </select>
+          </div>
+        )}
+
         {documents.length > 0 && (
           <div
             style={{
@@ -229,6 +301,7 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Authors</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Year</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>DOI</th>
+              <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Project</th>
               <th style={{ padding: '0.75rem', textAlign: 'left', fontWeight: '600' }}>Uploaded</th>
               <th style={{ padding: '0.75rem', textAlign: 'right', fontWeight: '600' }}>Chunks</th>
             </tr>
@@ -306,6 +379,24 @@ export default function DocumentList({ selectedDocuments, onSelectionChange }: D
                     </a>
                   ) : (
                     <span style={{ color: '#999' }}>—</span>
+                  )}
+                </td>
+                <td style={{ padding: '0.75rem' }}>
+                  {doc.project ? (
+                    <span
+                      style={{
+                        backgroundColor: '#e3f2fd',
+                        color: '#1976d2',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: '500',
+                      }}
+                    >
+                      {doc.project}
+                    </span>
+                  ) : (
+                    <span style={{ color: '#999', fontSize: '0.875rem' }}>—</span>
                   )}
                 </td>
                 <td style={{ padding: '0.75rem', color: '#666' }}>

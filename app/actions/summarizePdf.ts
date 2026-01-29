@@ -28,6 +28,7 @@ export type DocumentMetadata = {
   publicationYear: number | null
   doi: string | null
   sourceFile: string
+  project: string | null
 }
 
 /**

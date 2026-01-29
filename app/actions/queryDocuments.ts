@@ -43,7 +43,8 @@ export type QueryResult = {
 
 export async function queryDocuments(
   question: string,
-  selectedDocuments?: string[]
+  selectedDocuments?: string[],
+  selectedProject?: string
 ): Promise<QueryResult> {
   try {
     const overallStartTime = performance.now()
@@ -83,7 +84,8 @@ export async function queryDocuments(
       selectedDocuments && selectedDocuments.length > 0 ? selectedDocuments : undefined
 
     console.log('[queryDocuments] Filtering by source files:', sourceFiles)
-    const retrievedDocs = await retrieveDocuments(reformulatedQuestion, sourceFiles, 4)
+    console.log('[queryDocuments] Filtering by project:', selectedProject)
+    const retrievedDocs = await retrieveDocuments(reformulatedQuestion, sourceFiles, selectedProject, 4)
     console.log('[queryDocuments] Retrieved docs:', retrievedDocs.map(d => ({
       source: d.metadata.source_file,
       preview: d.pageContent.substring(0, 100)

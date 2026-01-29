@@ -15,9 +15,10 @@ type Message = {
 
 type ChatInterfaceProps = {
   selectedDocuments: string[]
+  selectedProject: string
 }
 
-export default function ChatInterface({ selectedDocuments }: ChatInterfaceProps) {
+export default function ChatInterface({ selectedDocuments, selectedProject }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -46,8 +47,14 @@ export default function ChatInterface({ selectedDocuments }: ChatInterfaceProps)
     setIsLoading(true)
 
     try {
-      // Call Server Action with optional document filtering
-      const result = await queryDocuments(trimmedInput, selectedDocuments.length > 0 ? selectedDocuments : undefined)
+      // Call Server Action with optional document and project filtering
+      // Only pass project filter if it's an actual project name (not '' or '__unassigned__')
+      const projectFilter = selectedProject && selectedProject !== '__unassigned__' ? selectedProject : undefined
+      const result = await queryDocuments(
+        trimmedInput,
+        selectedDocuments.length > 0 ? selectedDocuments : undefined,
+        projectFilter
+      )
 
       if (result.success && result.answer) {
         // Add assistant message
@@ -90,17 +97,21 @@ export default function ChatInterface({ selectedDocuments }: ChatInterfaceProps)
       <div
         style={{
           padding: '0.5rem 0.75rem',
-          backgroundColor: selectedDocuments.length > 0 ? '#fff3cd' : '#e3f2fd',
+          backgroundColor: selectedDocuments.length > 0 || selectedProject ? '#fff3cd' : '#e3f2fd',
           borderRadius: '4px',
           marginBottom: '1rem',
           fontSize: '0.875rem',
-          border: `1px solid ${selectedDocuments.length > 0 ? '#ffc107' : '#90caf9'}`,
+          border: `1px solid ${selectedDocuments.length > 0 || selectedProject ? '#ffc107' : '#90caf9'}`,
         }}
       >
         <strong>Query Scope:</strong>{' '}
         {selectedDocuments.length > 0
           ? `Searching ${selectedDocuments.length} selected document${selectedDocuments.length !== 1 ? 's' : ''}`
-          : 'Searching all documents'}
+          : selectedProject && selectedProject !== '__unassigned__'
+            ? `Searching all documents in project: ${selectedProject}`
+            : selectedProject === '__unassigned__'
+              ? 'Searching all unassigned documents'
+              : 'Searching all documents'}
       </div>
 
       {/* Message list - scrollable */}
