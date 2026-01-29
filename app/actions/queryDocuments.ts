@@ -5,6 +5,11 @@ import { PromptTemplate } from '@langchain/core/prompts'
 import { StringOutputParser } from '@langchain/core/output_parsers'
 import { retrieveDocuments } from '@/lib/vectordb/retriever'
 
+export type ChatHistoryMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export type PipelineSteps = {
   reformulatedQuestion: string
   documentsRetrieved: number
@@ -43,11 +48,30 @@ export type QueryResult = {
 
 export async function queryDocuments(
   question: string,
+  chatHistory: ChatHistoryMessage[] = [],
   selectedDocuments?: string[],
   selectedProject?: string
 ): Promise<QueryResult> {
   try {
     const overallStartTime = performance.now()
+
+    // Helper: Format chat history for prompt inclusion
+    const formatChatHistory = (history: ChatHistoryMessage[]): string => {
+      if (history.length === 0) return '(No previous conversation)'
+
+      // Limit to last 6 messages (3 Q&A pairs) and truncate long messages
+      const recentHistory = history.slice(-6)
+      return recentHistory
+        .map(m => {
+          const truncated = m.content.length > 500
+            ? m.content.substring(0, 500) + '...'
+            : m.content
+          return `${m.role === 'user' ? 'User' : 'Assistant'}: ${truncated}`
+        })
+        .join('\n')
+    }
+
+    const formattedChatHistory = formatChatHistory(chatHistory)
 
     // Initialize LLM
     const openAIApiKey = process.env.OPENAI_API_KEY
@@ -58,18 +82,32 @@ export async function queryDocuments(
 
     // Step 1: Reformulate question
     const reformulationStartTime = performance.now()
-    const standaloneQuestionTemplate =
-      'Create a standalone question form this user prompt: {question} standalone question:'
+    const standaloneQuestionTemplate = `Given the following conversation history and a follow-up question,
+rephrase the follow-up question to be a standalone question that includes all necessary context.
+If there is no conversation history, simply return the question as-is.
+
+Chat History:
+{chat_history}
+
+Follow-up Question: {question}
+
+Standalone Question:`
     const standaloneQuestionPrompt = PromptTemplate.fromTemplate(standaloneQuestionTemplate)
     const standaloneQuestionChain = standaloneQuestionPrompt.pipe(llm).pipe(new StringOutputParser())
 
-    const reformulatedQuestion = await standaloneQuestionChain.invoke({ question })
+    const reformulatedQuestion = await standaloneQuestionChain.invoke({
+      question,
+      chat_history: formattedChatHistory,
+    })
     const reformulationEndTime = performance.now()
     const reformulationLatency = reformulationEndTime - reformulationStartTime
 
     // Extract token usage for reformulation
     // Note: We need to get the raw response to access token usage
-    const reformulationResponse = await standaloneQuestionPrompt.pipe(llm).invoke({ question })
+    const reformulationResponse = await standaloneQuestionPrompt.pipe(llm).invoke({
+      question,
+      chat_history: formattedChatHistory,
+    })
     const reformulationUsage =
       (reformulationResponse as any).usage_metadata ||
       (reformulationResponse as any).response_metadata?.tokenUsage
@@ -115,6 +153,10 @@ IMPORTANT:
 - If the context doesn't contain enough information to fully answer the question, say so clearly
 - DO NOT make up information or use knowledge outside the provided context
 - If multiple papers are mentioned in the context, clarify which paper each point comes from
+- Consider the conversation history for context, but only answer based on the research papers provided
+
+Previous conversation:
+{chat_history}
 
 Question: {question}
 
@@ -128,6 +170,7 @@ Answer:`
     const answer = await answerChain.invoke({
       question: reformulatedQuestion,
       context,
+      chat_history: formattedChatHistory,
     })
     const answerEndTime = performance.now()
     const answerLatency = answerEndTime - answerStartTime
@@ -136,6 +179,7 @@ Answer:`
     const answerResponse = await answerPrompt.pipe(llm).invoke({
       question: reformulatedQuestion,
       context,
+      chat_history: formattedChatHistory,
     })
     const answerUsage =
       (answerResponse as any).usage_metadata || (answerResponse as any).response_metadata?.tokenUsage
