@@ -16,9 +16,9 @@ export default function UploadPage() {
         ← Back to Home
       </Link>
 
-      <h1>Upload PDF</h1>
+      <h1>Upload PDFs</h1>
       <p style={{ color: '#666', marginBottom: '2rem' }}>
-        Upload a research paper. An AI will summarize it, then you can decide whether to add it to the vector database.
+        Upload one or more research papers. Optionally generate AI summaries before uploading to the vector database.
       </p>
       <UploadForm />
     </main>
