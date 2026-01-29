@@ -38,6 +38,7 @@ export async function storeDocuments(
     doi: doc.metadata.doi || null,
     source_file: doc.metadata.source_file || null,
     upload_date: doc.metadata.upload_date || new Date().toISOString(),
+    project: doc.metadata.project || null,
   }))
 
   // Insert into Supabase

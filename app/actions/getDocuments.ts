@@ -10,6 +10,7 @@ export type DocumentRecord = {
   source_file: string | null
   upload_date: string | null
   chunk_count: number
+  project: string | null
 }
 
 export type GetDocumentsResult = {
@@ -61,6 +62,7 @@ export async function getDocuments(): Promise<GetDocumentsResult> {
           source_file: row.source_file,
           upload_date: row.upload_date,
           chunk_count: 1,
+          project: row.project,
         })
       }
     })
@@ -78,6 +80,48 @@ export async function getDocuments(): Promise<GetDocumentsResult> {
     }
   } catch (error) {
     console.error('Error in getDocuments:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+export type GetProjectsResult = {
+  success: boolean
+  projects?: string[]
+  error?: string
+}
+
+/**
+ * Server Action: Get list of unique project names from the database
+ *
+ * @returns List of unique project names
+ */
+export async function getProjects(): Promise<GetProjectsResult> {
+  try {
+    const supabase = getSupabaseClient()
+
+    const { data, error } = await supabase
+      .from('documents')
+      .select('project')
+      .not('project', 'is', null)
+
+    if (error) {
+      throw new Error(`Database query failed: ${error.message}`)
+    }
+
+    // Get unique project names
+    const projectSet = new Set<string>()
+    data?.forEach((row: any) => {
+      if (row.project) projectSet.add(row.project)
+    })
+
+    const projects = Array.from(projectSet).sort()
+
+    return { success: true, projects }
+  } catch (error) {
+    console.error('Error in getProjects:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

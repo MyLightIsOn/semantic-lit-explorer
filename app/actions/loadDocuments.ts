@@ -120,6 +120,7 @@ export async function loadDocumentsFromBuffer(
         doi: documentMetadata.doi,
         source_file: documentMetadata.sourceFile,
         upload_date: new Date().toISOString(),
+        project: documentMetadata.project,
       }
     })
 

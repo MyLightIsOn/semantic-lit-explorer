@@ -15,6 +15,7 @@ export default function UploadForm() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
   const [manualDoi, setManualDoi] = useState<string>('')
+  const [projectName, setProjectName] = useState<string>('')
 
   async function handleInitialSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -72,6 +73,7 @@ export default function UploadForm() {
     const finalMetadata = {
       ...summary.documentMetadata,
       doi: manualDoi.trim() || summary.documentMetadata.doi,
+      project: projectName.trim() || null,
     }
 
     try {
@@ -94,6 +96,7 @@ export default function UploadForm() {
           setSelectedFile(null)
           setResult(null)
           setManualDoi('')
+          setProjectName('')
         }, 10000)
       } else {
         setResult({
@@ -118,6 +121,7 @@ export default function UploadForm() {
     setSelectedFile(null)
     setResult(null)
     setManualDoi('')
+    setProjectName('')
   }
 
   return (
@@ -289,6 +293,45 @@ export default function UploadForm() {
                 {summary.documentMetadata?.doi
                   ? 'AI detected a DOI. Enter here only if you want to override it.'
                   : 'No DOI was detected. You can manually enter it here.'}
+              </div>
+            </div>
+
+            {/* Project Assignment */}
+            <div
+              style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                backgroundColor: 'white',
+                borderRadius: '4px',
+              }}
+            >
+              <label
+                htmlFor="project-name"
+                style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Project (optional):
+              </label>
+              <input
+                type="text"
+                id="project-name"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="e.g., Vector Databases, RAG Systems, LLM Architectures"
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '0.875rem',
+                }}
+              />
+              <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '0.25rem' }}>
+                Organize documents by research topic. Leave blank for unassigned documents.
               </div>
             </div>
 

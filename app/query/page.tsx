@@ -7,6 +7,7 @@ import DocumentList from './DocumentList'
 
 export default function QueryPage() {
   const [selectedDocuments, setSelectedDocuments] = useState<string[]>([])
+  const [selectedProject, setSelectedProject] = useState<string>('')
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -34,6 +35,8 @@ export default function QueryPage() {
           <DocumentList
             selectedDocuments={selectedDocuments}
             onSelectionChange={setSelectedDocuments}
+            selectedProject={selectedProject}
+            onProjectChange={setSelectedProject}
           />
         </div>
 
@@ -54,7 +57,7 @@ export default function QueryPage() {
               Ask questions about your research papers using semantic search
             </p>
           </div>
-          <ChatInterface selectedDocuments={selectedDocuments} />
+          <ChatInterface selectedDocuments={selectedDocuments} selectedProject={selectedProject} />
         </div>
       </div>
     </div>

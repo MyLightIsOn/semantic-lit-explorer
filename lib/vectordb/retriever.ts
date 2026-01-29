@@ -38,19 +38,21 @@ export function getRetriever(
 }
 
 /**
- * Retrieve documents with source file filtering
+ * Retrieve documents with source file and project filtering
  *
- * This directly calls the match_documents function with source_files parameter
+ * This directly calls the match_documents function with source_files and project parameters
  * for more efficient filtering than JSONB metadata queries.
  *
  * @param query - The query string to search for
  * @param sourceFiles - Optional array of source file names to filter by
+ * @param project - Optional project name to filter by
  * @param k - Number of documents to retrieve (default: 4)
  * @returns Array of Document objects
  */
 export async function retrieveDocuments(
   query: string,
   sourceFiles?: string[],
+  project?: string,
   k: number = 4
 ): Promise<Document[]> {
   const supabase = getSupabaseClient()
@@ -59,12 +61,13 @@ export async function retrieveDocuments(
   // Generate embedding for the query
   const queryEmbedding = await embeddingsModel.embedQuery(query)
 
-  // Call the match_documents function with source_files parameter
+  // Call the match_documents function with source_files and project parameters
   const { data, error } = await supabase.rpc('match_documents', {
     query_embedding: queryEmbedding,
     filter: {},
     match_count: k,
     source_files: sourceFiles || null,
+    project: project || null,
   })
 
   if (error) {
