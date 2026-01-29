@@ -1,7 +1,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { queryDocuments, type PipelineSteps, type QueryMetadata } from '../actions/queryDocuments'
+import {
+  queryDocuments,
+  type PipelineSteps,
+  type QueryMetadata,
+  type ChatHistoryMessage,
+} from '../actions/queryDocuments'
 import MessageList from './MessageList'
 
 type Message = {
@@ -47,11 +52,18 @@ export default function ChatInterface({ selectedDocuments, selectedProject }: Ch
     setIsLoading(true)
 
     try {
+      // Build chat history from previous messages
+      const chatHistory: ChatHistoryMessage[] = messages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      }))
+
       // Call Server Action with optional document and project filtering
       // Only pass project filter if it's an actual project name (not '' or '__unassigned__')
       const projectFilter = selectedProject && selectedProject !== '__unassigned__' ? selectedProject : undefined
       const result = await queryDocuments(
         trimmedInput,
+        chatHistory,
         selectedDocuments.length > 0 ? selectedDocuments : undefined,
         projectFilter
       )
@@ -152,6 +164,24 @@ export default function ChatInterface({ selectedDocuments, selectedProject }: Ch
             fontSize: '1rem',
           }}
         />
+        {messages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setMessages([])}
+            disabled={isLoading}
+            style={{
+              padding: '0.75rem 1rem',
+              backgroundColor: isLoading ? '#e0e0e0' : '#6c757d',
+              color: isLoading ? '#999' : 'white',
+              border: 'none',
+              borderRadius: '4px',
+              fontSize: '1rem',
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Clear Chat
+          </button>
+        )}
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
